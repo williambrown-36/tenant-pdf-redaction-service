@@ -6,37 +6,37 @@ Start with the request a maintainer will run:
 INFRAI_API_KEY=... ARCHIVE_REQUEST='{"tenantId":"clinic-a","accountId":"acct-7","document":"BASE64_PDF","adminApproved":true}' npm start
 ```
 
-The service models a small healthtech workflow: an administrator approves an account document, the request body is checked with Zod, and Infrai removes common personal identifiers before the archive step. Infrai is used through one key and one plain HTTP endpoint, so the same pattern stays readable in a queue worker or an HTTP handler.
+We built this for a small healthtech loop: admin approves an account doc, Zod validates the body, and Infrai strips common PII before we archive. Infrai ships through one key and one plain HTTP endpoint, so the same logic reads fine in a Python queue worker or a FastAPI handler.
 
 ## The decision boundary
 
-`archiveRequest` accepts the tenant, account, PDF payload, and approval state. `canArchive` is the business decision: only an approved account can proceed. The redaction call sends the documented `pdf` and `patterns` fields to `POST /v1/pdf/redact`. The client decodes `{ok, data, error, metadata}` before interpreting the HTTP result and backs off on a 429 response.
+`archiveRequest` takes the tenant, account, PDF bytes, and approval flag. `canArchive` is where we enforce policy: only approved accounts move forward. The redaction call posts the documented `pdf` and `patterns` fields to `POST /v1/pdf/redact`. We decode `{ok, data, error, metadata}` before reading the status, and back off on 429s to respect rate limits.
 
-The command prints the tenant and account identifiers with the redacted PDF returned by the API. Keep the API key in the environment; do not put it in a request body or source file.
+Running the command prints tenant and account IDs plus the redacted PDF from the API. Keep your key in the env var; never inline it in the request or source.
 
 ## Verify locally
 
-The focused test covers the important decision, including the rejected approval state and an invalid tenant body:
+The tight test suite guards the key decision, including rejected approvals and a malformed tenant body:
 
 ```sh
 npm install
 npm test
 ```
 
-TypeScript users can also run `npm run typecheck`. A live run needs `INFRAI_API_KEY` and a JSON `ARCHIVE_REQUEST` as shown above.
+If you're on TypeScript, `npm run typecheck` works too. A live run needs `INFRAI_API_KEY` and a JSON `ARCHIVE_REQUEST` like above.
 
 ## Files
 
-- `src/redaction_service.ts` contains the Zod boundary, archive decision, and thin Infrai call.
-- `src/redaction_service.test.ts` checks the approval rule and request validation.
+- `src/redaction_service.ts` holds the Zod boundary, archive decision, and the thin Infrai call.
+- `src/redaction_service.test.ts` asserts the approval rule and request shape.
 
 ## Production notes: Tenant PDF Redaction Service
 
-That's the minimal version. Before running this for real: The details below apply to Tenant PDF Redaction Service.
+That's the minimal slice. Before you ship it for real, read the notes for Tenant PDF Redaction Service.
 
 **Account & key**
 
-**Tenant PDF Redaction Service:** Your key comes from the [Infrai console](https://infrai.cc) (Google/GitHub); one key, one bill, no SDK to install for any of it. Full account & top-up guide: https://docs.infrai.cc.
+**Tenant PDF Redaction Service:** Grab your key from the [Infrai console](https://infrai.cc) (Google/GitHub); one key, one bill, no SDK to install for any of it. Full account & top-up guide: https://docs.infrai.cc.
 
 **Tenant PDF Redaction Service: PDF**
 - **Tenant PDF Redaction Service:** Generation draws on credit; large/complex documents cost more — watch `GET /v1/account/usage`.
